@@ -71,7 +71,7 @@ func init() {
 	prometheus.MustRegister(requestsByStatusCode)
 }
 
-func parseAndGenerate(templateFile, generatedFile string) {
+func parseAndGenerate(templateFile, generatedFile string) error {
 
 	t, err := template.ParseFiles(templateFile)
 	if err != nil {
@@ -87,7 +87,7 @@ func parseAndGenerate(templateFile, generatedFile string) {
 
 	defer f.Close()
 
-	err = t.Execute(f, templateFile)
+	err = t.Execute(f, t)
 	if err != nil {
 		log.Print("execute: ", err)
 		return
@@ -130,7 +130,10 @@ func main() {
 				for _, h := range webhook {
 					begun := time.Now()
 
-					/* run file generation here*/
+					err := parseAndGenerate(*templateReference, *fileToGenerate)
+					if err != nil {
+						log.Fatal(err)
+					}
 
 					req, err := http.NewRequest(*webhookMethod, h.String(), nil)
 					if err != nil {
