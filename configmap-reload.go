@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"text/template"
 	"time"
 
 	fsnotify "github.com/fsnotify/fsnotify"
@@ -26,6 +27,8 @@ var (
 	webhookRetries    = flag.Int("webhook-retries", 1, "the amount of times to retry the webhook reload request")
 	listenAddress     = flag.String("web.listen-address", ":9533", "Address to listen on for web interface and telemetry.")
 	metricPath        = flag.String("web.telemetry-path", "/metrics", "Path under which to expose metrics.")
+	fileToGenerate    = flag.String("file-to-generate", "", "If we want to generate a new config file (ie: for alertmanager)")
+	templateReference = flag.String("templateReference", "", "A template to generate a file")
 
 	lastReloadError = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: namespace,
@@ -68,6 +71,29 @@ func init() {
 	prometheus.MustRegister(requestsByStatusCode)
 }
 
+func parseAndGenerate(templateFile, generatedFile string) {
+
+	t, err := template.ParseFiles(templateFile)
+	if err != nil {
+		log.Print(err)
+		return
+	}
+
+	f, err := os.Create(generatedFile)
+	if err != nil {
+		log.Println("create file: ", err)
+		return
+	}
+
+	defer f.Close()
+
+	err = t.Execute(f, templateFile)
+	if err != nil {
+		log.Print("execute: ", err)
+		return
+	}
+}
+
 func main() {
 	flag.Var(&volumeDirs, "volume-dir", "the config map volume directory to watch for updates; may be used multiple times")
 	flag.Var(&webhook, "webhook-url", "the url to send a request to when the specified config map volume directory has been updated")
@@ -103,6 +129,9 @@ func main() {
 				log.Println("config map updated")
 				for _, h := range webhook {
 					begun := time.Now()
+
+					/* run file generation here*/
+
 					req, err := http.NewRequest(*webhookMethod, h.String(), nil)
 					if err != nil {
 						setFailureMetrics(h.String(), "client_request_create")
